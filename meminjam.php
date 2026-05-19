@@ -51,6 +51,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 
     <div class="tabs-container">
+        <a href="index.php" class="tab ">Log Book</a>
         <a href="menambahkan.php" class="tab">Menambahkan</a>
         <a href="meminjam.php" class="tab active">Meminjam</a>
         <a href="memindahkan.php" class="tab">Memindahkan</a>
@@ -64,14 +65,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <label>Pilih Dokumen</label>
                 <select name="arsip_id" class="form-control" required>
                     <option value="">Pilih Dokumen (Unit Pengolahan)</option>
-                    <option value="customer service">Customer Service</option>
-                    <option value="teller">Teller</option>
-                    <option value="kredit">Kredit</option>
-                    <option value="-">-Lainnya-</option>
                     <?php
-                    $query_arsip = mysqli_query($koneksi, "SELECT id, kode_arsip, perihal, unit_pengolahan FROM arsip WHERE status = 'Tersedia'");
+
+                    $bulan_indo = array(
+                        '01' => 'Januari',
+                        '02' => 'Februari',
+                        '03' => 'Maret',
+                        '04' => 'April',
+                        '05' => 'Mei',
+                        '06' => 'Juni',
+                        '07' => 'Juli',
+                        '08' => 'Agustus',
+                        '09' => 'September',
+                        '10' => 'Oktober',
+                        '11' => 'November',
+                        '12' => 'Desember'
+                    );
+
+                    $query_arsip = mysqli_query($koneksi, "SELECT id, kode_arsip, perihal, ruangan, no_rak, periode FROM arsip WHERE status = 'Tersedia'");
                     while($row = mysqli_fetch_assoc($query_arsip)) {
-                        echo "<option value='".$row['id']."'>".$row['kode_arsip']." - ".$row['perihal']." (".$row['unit_pengolahan'].")</option>";
+
+                        $tanggal_mentah = $row['periode'];
+            
+                        if (!empty($tanggal_mentah) && $tanggal_mentah != '0000-00-00') {
+                            $timestamp = strtotime($tanggal_mentah);
+                            $hari = date('d', $timestamp);
+                            $bulan_angka = date('m', $timestamp); 
+                            $tahun = date('Y', $timestamp);
+                            
+                            $periode_format = $hari . ' ' . $bulan_indo[$bulan_angka] . ' ' . $tahun;
+                        } else {
+                            $periode_format = "-";
+                        }
+
+                        echo "<option value='".$row['id']."'>".$row['kode_arsip']." - ".$row['perihal']. " - " . $periode_format . " - " . " (Posisi: ".$row['ruangan']."/".$row['no_rak'].")</option>";
                     }
                     ?>
                 </select>

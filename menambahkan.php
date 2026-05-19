@@ -2,26 +2,50 @@
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
-    $unit_pengolahan = mysqli_real_escape_string($koneksi, $_POST['unit_pengolahan']);
-    $kode_arsip     = mysqli_real_escape_string($koneksi, $_POST['kode_arsip']);
-    $perihal        = mysqli_real_escape_string($koneksi, $_POST['perihal']);
-    $periode        = mysqli_real_escape_string($koneksi, $_POST['periode']);
-    $peta_lokasi    = mysqli_real_escape_string($koneksi, $_POST['peta_lokasi']); 
-    $ruangan        = mysqli_real_escape_string($koneksi, $_POST['ruangan']);
-    $no_rak         = mysqli_real_escape_string($koneksi, $_POST['no_rak']);
-    $tingkatan_rak  = mysqli_real_escape_string($koneksi, $_POST['tingkatan_rak']);
-    $ttd            = mysqli_real_escape_string($koneksi, $_POST['ttd']); 
-    
-    $sql = "INSERT INTO arsip (unit_pengolahan, kode_arsip, perihal, periode, peta_lokasi, ruangan, no_rak, tingkatan_rak, ttd) 
-            VALUES ('$unit_pengolahan', '$kode_arsip', '$perihal', '$periode', '$peta_lokasi', '$ruangan', '$no_rak', '$tingkatan_rak', '$ttd')";
-    
-    if (mysqli_query($koneksi, $sql)) {
-        echo "<script>
-                alert('Data arsip sukses disimpan ke database!'); 
-                window.location='.';
-              </script>";
-    } else {
-        echo "Gagal menyimpan data: " . mysqli_error($koneksi);
+    $unit_pengolahan      = mysqli_real_escape_string($koneksi, $_POST['unit_pengolahan']);
+    $kode_arsip           = mysqli_real_escape_string($koneksi, $_POST['kode_arsip']);
+    $perihal              = mysqli_real_escape_string($koneksi, $_POST['perihal']);
+    $periode              = mysqli_real_escape_string($koneksi, $_POST['periode']);
+    $peta_lokasi          = mysqli_real_escape_string($koneksi, $_POST['peta_lokasi']); 
+    $ruangan              = mysqli_real_escape_string($koneksi, $_POST['ruangan']);
+    $no_rak               = mysqli_real_escape_string($koneksi, $_POST['no_rak']);
+    $tingkatan_rak        = mysqli_real_escape_string($koneksi, $_POST['tingkatan_rak']);
+    $nama                 = mysqli_real_escape_string($koneksi, $_POST['nama']);
+    $keterangan_aktivitas = 'Menambahkan arsip baru ke sistem';
+    $jenis_aktivitas      = "Menambahkan";
+    $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']); 
+
+    mysqli_begin_transaction($koneksi);
+
+    try {
+        $sql_arsip = "INSERT INTO arsip (unit_pengolahan, kode_arsip, perihal, periode, peta_lokasi, ruangan, no_rak, tingkatan_rak) 
+            VALUES ('$unit_pengolahan', '$kode_arsip', '$perihal', '$periode', '$peta_lokasi', '$ruangan', '$no_rak', '$tingkatan_rak')";
+
+        if (mysqli_query($koneksi, $sql_arsip)){
+            $arsip_id = mysqli_insert_id($koneksi);
+
+            $sql_log = "INSERT INTO log_book (arsip_id, nama, jenis_aktivitas, keterangan_aktivitas, ttd) 
+                VALUES ('$arsip_id', '$nama', '$jenis_aktivitas', '$keterangan_aktivitas', '$ttd')";
+
+            if (mysqli_query($koneksi, $sql_log)) {
+                mysqli_commit($koneksi); 
+
+                echo "<script>
+                        alert('Data arsip dan log sukses disimpan ke database!'); 
+                        window.location='index.php';
+                    </script>";
+            } else {
+                mysqli_rollback($koneksi);
+                echo "Gagal menyimpan log: " . mysqli_error($koneksi);
+            }
+        } else {
+            mysqli_rollback($koneksi);
+            echo "Gagal menyimpan data arsip: " . mysqli_error($koneksi);
+        }
+            
+    } catch (mysqli_sql_exception $exception) {
+        mysqli_rollback($koneksi);
+        echo "Gagal menyimpan data karena error sistem: " . $exception->getMessage();
     }
 }
 ?>
@@ -43,12 +67,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 
     <div class="tabs-container">
+        <a href="index.php" class="tab">Log Book</a>
         <a href="menambahkan.php" class="tab active">Menambahkan</a>
         <a href="meminjam.php" class="tab">Meminjam</a>
         <a href="memindahkan.php" class="tab">Memindahkan</a>
     </div>
 
     <form action="" method="POST" class="form-area" id="formTambahArsip">
+
+        <div class="section-title">Informasi Kariyawan</div>
+        <div class="card card-grid">
+            <div class="form-group">
+                <label>Nama</label>
+                <input type="text" name="nama" class="form-control" placeholder="Masukan nama karyawan" required>
+            </div>
+        </div>
         
         <div class="section-title">Informasi Dokumen</div>
         <div class="card card-grid">
@@ -72,7 +105,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
             <div class="form-group">
                 <label>Periode</label>
-                <input type="text" name="periode" class="form-control" placeholder="Masukan Periode" required>
+                <input type="date" name="periode" class="form-control" placeholder="Masukan Periode" required>
             </div>
         </div>
 

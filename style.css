@@ -260,3 +260,45 @@ select.form-control {
         flex: 1; /* Lebar tombol dibagi rata sama besar */
     }
 }
+
+/* Styling Khusus Card Tabel */
+.table-card {
+    padding: 0; /* Menghilangkan padding agar tabel penuh ke ujung card */
+    overflow: hidden;
+}
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto; /* Agar tabel bisa di-scroll ke samping di HP */
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-logbook {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    min-width: 400px; /* Lebar minimum agar teks tidak terlalu terjepit */
+}
+
+.table-logbook th {
+    background-color: #f0f2f5;
+    color: #555;
+    font-weight: 600;
+    text-align: left;
+    padding: 12px 15px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.table-logbook td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #f0f2f5;
+    color: #333;
+}
+
+.table-logbook tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table-logbook tbody tr:hover {
+    background-color: #fafafa;
+}
