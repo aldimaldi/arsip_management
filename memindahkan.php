@@ -11,30 +11,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $tingkatan_rak        = mysqli_real_escape_string($koneksi, $_POST['tingkatan_rak']);
     $ruangan              = mysqli_real_escape_string($koneksi, $_POST['ruangan']);
     $keterangan_aktivitas = mysqli_real_escape_string($koneksi, $_POST['keterangan_aktivitas']);
+    $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']);
     $jenis_aktivitas      = "Memindahkan";
     
-    // Proses decode tanda tangan dari Base64 ke File Gambar PNG
-    $ttd_base64 = $_POST['ttd_base64'];
-    $nama_file_ttd = NULL;
+    // // Proses decode tanda tangan dari Base64 ke File Gambar PNG
+    // $ttd_base64 = $_POST['ttd_base64'];
+    // $nama_file_ttd = NULL;
 
-    if (!empty($ttd_base64) && $ttd_base64 != "empty") {
-        // Hapus metadata base64
-        $filteredData = explode(',', $ttd_base64);
-        if(isset($filteredData[1])) {
-            $unencodedData = base64_decode($filteredData[1]);
+    // if (!empty($ttd_base64) && $ttd_base64 != "empty") {
+    //     // Hapus metadata base64
+    //     $filteredData = explode(',', $ttd_base64);
+    //     if(isset($filteredData[1])) {
+    //         $unencodedData = base64_decode($filteredData[1]);
             
-            // Nama file unik untuk tanda tangan
-            $nama_file_ttd = "ttd_" . time() . "_" . uniqid() . ".png";
-            $target_path = "uploads/" . $nama_file_ttd;
+    //         // Nama file unik untuk tanda tangan
+    //         $nama_file_ttd = "ttd_" . time() . "_" . uniqid() . ".png";
+    //         $target_path = "uploads/" . $nama_file_ttd;
             
-            // Simpan gambar ke folder uploads
-            file_put_contents($target_path, $unencodedData);
-        }
-    }
+    //         // Simpan gambar ke folder uploads
+    //         file_put_contents($target_path, $unencodedData);
+    //     }
+    // }
 
     // Mulai proses transaksi database
     mysqli_begin_transaction($koneksi);
     
+    // var_dump($_POST); die;
     try {
         // a. Update lokasi rak dan ruangan baru di tabel arsip
         $sql_update_arsip = "UPDATE arsip SET 
@@ -46,19 +48,47 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         // b. Catat riwayat pemindahan ke tabel log_book beserta nama file tanda tangan
         $sql_insert_log = "INSERT INTO log_book (arsip_id, nama, ttd, jenis_aktivitas, keterangan_aktivitas) 
-                           VALUES ('$arsip_id', '$nama', '$nama_file_ttd', '$jenis_aktivitas', '$keterangan_aktivitas')";
+                           VALUES ('$arsip_id', '$nama', '$ttd', '$jenis_aktivitas', '$keterangan_aktivitas')";
         mysqli_query($koneksi, $sql_insert_log);
         
         // Komit transaksi
         mysqli_commit($koneksi);
         
         echo "<script>
-                alert('Dokumen berhasil dipindahkan dan riwayat telah dicatat!'); 
-                window.location='memindahkan.php';
+                document.addEventListener('DOMContentLoaded', function() {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end', // Ubah ke 'bottom-end' jika ingin di bawah
+                        icon: 'success',
+                        title: 'Data arsip berhasil dipindahkan!',
+                        showConfirmButton: false,
+                        timer: 1500, // Waktu tampil 1.5 detik
+                        timerProgressBar: true
+                    }).then(function() {
+                        // Pindah halaman setelah animasi Toast selesai
+                        window.location = 'index.php';
+                    });
+                });
               </script>";
     } catch (mysqli_sql_exception $exception) {
         mysqli_rollback($koneksi);
-        echo "Gagal memproses pemindahan: " . $exception->getMessage();
+        $pesan_error = addslashes($exception->getMessage());
+        
+        echo "
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'error',
+                    title: 'Error Sistem Database!',
+                    text: '$pesan_error',
+                    showConfirmButton: false,
+                    timer: 5000,
+                    timerProgressBar: true
+                });
+            });
+        </script>";
     }
 }
 ?>
@@ -70,7 +100,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Form Memindahkan - Mandiri Taspen</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 </head>
 <body>
 
@@ -86,13 +118,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <a href="memindahkan.php" class="tab active">Memindahkan</a>
     </div>
 
-    <form action="" method="POST" class="form-area" id="formTambahArsip">
+    <form action="" method="POST" class="form-area" id="formMemindahkan">
         
-        <div class="section-title">Informasi Dokumen</div>
+        <div class="section-title">Informasi Karyawan</div>
         <div class="card">
             <div class="form-group">
+                <label>Nama Pemindah</label>
+                <input type="text" name="nama" class="form-control" placeholder="Masukkan Nama Pemindah" required>
+            </div>
+        </div>
+
+        <div class="section-title">Informasi Dokumen</div>
+        <div class="card">
+            
+            <div class="form-group">
                 <label>Pilih Dokumen</label>
-                <select name="arsip_id" class="form-control" required>
+                <select name="arsip_id" class="form-control" id="search" required>
                     <option value="">Pilih Dokumen (Unit Pengolahan)</option>
                     <?php
                     $bulan_indo = array(
@@ -135,15 +176,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
             
             <div class="form-group">
-                <label>Nama Pemindah</label>
-                <input type="text" name="nama" class="form-control" placeholder="Masukkan Nama Pemindah" required>
+                <label>Keterangan Pemindahan</label>
+                <textarea name="keterangan_aktivitas" class="form-control" placeholder="Contoh: Perapihan Ruangan"></textarea>
             </div>
+        </div>
 
+        <div class="section-title">Informasi Tata Letak Pemindahan</div>
+        <div class="card">
+            <div class="form-group">
+                <label>Ruangan</label>
+                <input type="text" name="ruangan" class="form-control" placeholder="Contoh: Ruangan Arsip Lantai 1" required>
+            </div>
             <div class="form-group">
                 <label>No Rak</label>
                 <select name="no_rak" class="form-control" required>
                     <option value="">Pilih No Rak</option>
-                    <?php for($i=1; $i<=13; $i++) { echo "<option value='Rak $i'>Rak $i</option>"; } ?>
+                    <?php for($i=1; $i<=20; $i++) { echo "<option value='Rak $i'>Rak $i</option>"; } ?>
                 </select>
             </div>
 
@@ -154,20 +202,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <?php for($i=1; $i<=5; $i++) { echo "<option value='Tingkat $i'>Tingkat $i</option>"; } ?>
                 </select>
             </div>
-
-            <div class="form-group">
-                <label>Ruangan</label>
-                <select name="ruangan" class="form-control" required>
-                    <option value="">Pilih Ruangan</option>
-                    <option value="Ruangan Arsip">Ruangan Arsip</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Keterangan Pemindahan</label>
-                <textarea name="keterangan_aktivitas" class="form-control" placeholder="Masukkan Keterangan Peminjam"></textarea>
-            </div>
         </div>
+
 
         <div class="section-title">Verifikasi</div>
         <div class="card">
@@ -193,51 +229,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </form>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="script.js"></script>
 <script>
-    // 1. Inisialisasi Canvas dan SignaturePad
-    const canvas = document.getElementById('canvasTtd');
-    const signaturePad = new SignaturePad(canvas, {
-        backgroundColor: 'rgba(255, 255, 255, 0)', 
-        penColor: 'rgb(12, 62, 104)' // Mengubah warna goresan pulpen menjadi Biru Mandiri Taspen
-    });
-
-    // 2. Fungsi menyesuaikan ukuran canvas agar presisi
-    function resizeCanvas() {
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        canvas.width = canvas.offsetWidth * ratio;
-        canvas.height = canvas.offsetHeight * ratio;
-        canvas.getContext("2d").scale(ratio, ratio);
-        signaturePad.clear(); 
-    }
-
-    window.addEventListener("resize", resizeCanvas);
-    document.addEventListener("DOMContentLoaded", resizeCanvas);
-
-    // 3. Tombol Ulang / Hapus Coretan
-    document.getElementById('btnHapus').addEventListener('click', function() {
-        signaturePad.clear();
-        document.getElementById('inputTtd').value = ""; 
-        alert('Coretan tanda tangan dibersihkan.');
-    });
-
-    // 4. Tombol Konfirmasi Tanda Tangan
-    document.getElementById('btnKonfirmasi').addEventListener('click', function() {
-        if (signaturePad.isEmpty()) {
-            alert("Silakan buat tanda tangan terlebih dahulu!");
-        } else {
-            const dataDataUrl = signaturePad.toDataURL('image/png');
-            document.getElementById('inputTtd').value = dataDataUrl;
-            alert("Tanda tangan berhasil dikonfirmasi!");
-        }
-    });
-
-    // 5. Validasi saat form dikirim
-    document.getElementById('formPeminjaman').addEventListener('submit', function(e) {
-        const inputTtdValue = document.getElementById('inputTtd').value;
-        if (!inputTtdValue || signaturePad.isEmpty()) {
-            e.preventDefault(); 
-            alert("Anda belum menekan tombol 'Konfirmasi' pada tanda tangan!");
-        }
+    $("#search").select2({
+        tags: true,
+        width: '100%'
     });
 </script>
 

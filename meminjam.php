@@ -7,9 +7,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     $arsip_id             = mysqli_real_escape_string($koneksi, $_POST['arsip_id']);
     $nama                 = mysqli_real_escape_string($koneksi, $_POST['nama']);
-    $keterangan_aktivitas = mysqli_real_escape_string($koneksi, $_POST['keterangan_aktivitas']);
+    $nama_dokumen         = mysqli_real_escape_string($koneksi, $_POST['nama_dokumen']);
+    $keterangan           = mysqli_real_escape_string($koneksi, $_POST['keterangan']);
     $jenis_aktivitas      = "Meminjam";
-    $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']); 
+    $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']);
+    $keterangan_aktivitas = "Dokumen: " . $nama_dokumen . " | Alasan: " . $keterangan; 
     
     mysqli_begin_transaction($koneksi);
     
@@ -18,18 +20,43 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     VALUES ('$arsip_id', '$nama', '$jenis_aktivitas', '$keterangan_aktivitas', '$ttd')";
         mysqli_query($koneksi, $sql_log);
         
-        $sql_update = "UPDATE arsip SET status = 'Dipinjam' WHERE id = '$arsip_id'";
-        mysqli_query($koneksi, $sql_update);
-        
         mysqli_commit($koneksi);
         
         echo "<script>
-                alert('Data peminjaman sukses dicatat!'); 
-                window.location='index.php';
+                document.addEventListener('DOMContentLoaded', function() {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end', // Ubah ke 'bottom-end' jika ingin di bawah
+                        icon: 'success',
+                        title: 'Data arsip berhasil di pinjam!',
+                        showConfirmButton: false,
+                        timer: 1500, // Waktu tampil 1.5 detik
+                        timerProgressBar: true
+                    }).then(function() {
+                        // Pindah halaman setelah animasi Toast selesai
+                        window.location = 'index.php';
+                    });
+                });
               </script>";
     } catch (mysqli_sql_exception $exception) {
         mysqli_rollback($koneksi);
-        echo "Gagal menyimpan data: " . $exception->getMessage();
+        $pesan_error = addslashes($exception->getMessage());
+        
+        echo "
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'error',
+                    title: 'Error Sistem Database!',
+                    text: '$pesan_error',
+                    showConfirmButton: false,
+                    timer: 5000,
+                    timerProgressBar: true
+                });
+            });
+        </script>";
     }
 }
 ?>
@@ -41,6 +68,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Form Mandiri Taspen</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 </head>
@@ -63,9 +91,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <div class="section-title">Informasi Dokumen</div>
         <div class="card">
             <div class="form-group">
-                <label>Pilih Dokumen</label>
-                <select name="arsip_id" class="form-control" required>
-                    <option value="">Pilih Dokumen (Unit Pengolahan)</option>
+                <label>Nama Peminjam</label>
+                <input type="text" name="nama" class="form-control" placeholder="Masukkan Nama Peminjam" required>
+            </div>
+            <div class="form-group">
+                <label>Pilih Kardus Arsip</label>
+                <select name="arsip_id" class="form-control" id="search" required>
+                    <option value="">Pilih Kardus / unit..</option>
                     <?php
 
                     $bulan_indo = array(
@@ -83,7 +115,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         '12' => 'Desember'
                     );
 
-                    $query_arsip = mysqli_query($koneksi, "SELECT id, kode_arsip, perihal, ruangan, no_rak, periode FROM arsip WHERE status = 'Tersedia'");
+                    $query_arsip = mysqli_query($koneksi, "SELECT id, kode_arsip, perihal, ruangan, no_rak, periode FROM arsip ");
                     while($row = mysqli_fetch_assoc($query_arsip)) {
 
                         $tanggal_mentah = $row['periode'];
@@ -105,12 +137,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </select>
             </div>
             <div class="form-group">
-                <label>Nama Peminjam</label>
-                <input type="text" name="nama" class="form-control" placeholder="Masukkan Nama Peminjam" required>
+                <label>Nama Dokumen yang Dipinjam</label>
+                <input type="text" name="nama_dokumen" class="form-control" placeholder="Ketik nama surat/dokumen" required>
             </div>
             <div class="form-group">
-                <label>Keterangan Peminjam</label>
-                <textarea name="keterangan_aktivitas" class="form-control" placeholder="Masukkan Keterangan Peminjam"></textarea>
+                <label>Tujuan / Alasan Peminjaman</label>
+                <textarea name="keterangan" class="form-control" placeholder="Contoh: Keperluan audit" required></textarea>
             </div>
         </div>
 
@@ -138,51 +170,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </form>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="script.js"></script>
 <script>
-    // 1. Inisialisasi Canvas dan SignaturePad
-    const canvas = document.getElementById('canvasTtd');
-    const signaturePad = new SignaturePad(canvas, {
-        backgroundColor: 'rgba(255, 255, 255, 0)', 
-        penColor: 'rgb(12, 62, 104)' // Mengubah warna goresan pulpen menjadi Biru Mandiri Taspen
-    });
-
-    // 2. Fungsi menyesuaikan ukuran canvas agar presisi
-    function resizeCanvas() {
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        canvas.width = canvas.offsetWidth * ratio;
-        canvas.height = canvas.offsetHeight * ratio;
-        canvas.getContext("2d").scale(ratio, ratio);
-        signaturePad.clear(); 
-    }
-
-    window.addEventListener("resize", resizeCanvas);
-    document.addEventListener("DOMContentLoaded", resizeCanvas);
-
-    // 3. Tombol Ulang / Hapus Coretan
-    document.getElementById('btnHapus').addEventListener('click', function() {
-        signaturePad.clear();
-        document.getElementById('inputTtd').value = ""; 
-        alert('Coretan tanda tangan dibersihkan.');
-    });
-
-    // 4. Tombol Konfirmasi Tanda Tangan
-    document.getElementById('btnKonfirmasi').addEventListener('click', function() {
-        if (signaturePad.isEmpty()) {
-            alert("Silakan buat tanda tangan terlebih dahulu!");
-        } else {
-            const dataDataUrl = signaturePad.toDataURL('image/png');
-            document.getElementById('inputTtd').value = dataDataUrl;
-            alert("Tanda tangan berhasil dikonfirmasi!");
-        }
-    });
-
-    // 5. Validasi saat form dikirim
-    document.getElementById('formPeminjaman').addEventListener('submit', function(e) {
-        const inputTtdValue = document.getElementById('inputTtd').value;
-        if (!inputTtdValue || signaturePad.isEmpty()) {
-            e.preventDefault(); 
-            alert("Anda belum menekan tombol 'Konfirmasi' pada tanda tangan!");
-        }
+    $("#search").select2({
+        tags: true,
+        width: '100%'
     });
 </script>
 

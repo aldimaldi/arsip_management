@@ -127,6 +127,16 @@ body {
     border: 1px solid #0c3e68;
 }
 
+.form-control:disabled,
+.form-control[readonly] {
+    background-color: #e2e5e9 !important; /* Warna background dibuat lebih gelap dari form aktif */
+    color: #888 !important; /* Warna teks dibuat memudar (abu-abu) */
+    cursor: not-allowed !important; /* Mengubah kursor mouse menjadi logo dilarang (lingkaran dicoret) */
+    border: 1px dashed #ccc !important; /* Mengubah garis pinggir menjadi putus-putus agar terlihat tidak bisa diisi */
+    opacity: 0.8 !important; /* Memberikan efek sedikit transparan */
+
+}
+
 select.form-control {
     appearance: none;
     background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
@@ -301,4 +311,73 @@ select.form-control {
 
 .table-logbook tbody tr:hover {
     background-color: #fafafa;
+}
+
+/* ====================================================
+   OVERRIDE PLUGIN SELECT2 AGAR MIRIP .FORM-CONTROL
+   ==================================================== */
+
+/* Memperbaiki kotak utama Select2 */
+.select2-container .select2-selection--single {
+    height: 37px !important; /* Menyamakan tinggi dengan input form-control */
+    background-color: #f0f2f5 !important;
+    border: 1px solid #f0f2f5 !important;
+    border-radius: 4px !important;
+    display: flex !important;
+    align-items: center !important;
+    outline: none !important;
+}
+
+/* Mengatur warna dan ukuran teks yang dipilih */
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: #555 !important;
+    font-size: 11px !important;
+    padding-left: 10px !important;
+    line-height: normal !important;
+}
+
+/* Mengatur posisi panah dropdown di sebelah kanan */
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 35px !important;
+    right: 5px !important;
+}
+
+/* Efek border biru saat dropdown sedang diklik/fokus */
+.select2-container--open .select2-selection--single,
+.select2-container--focus .select2-selection--single {
+    border: 1px solid #0c3e68 !important;
+}
+
+/* Mengatur dropdown list (kotak pilihan yang muncul ke bawah) */
+.select2-container--default .select2-results__option {
+    font-size: 11px !important;
+}
+
+.swal2-toast { font-size: 13px !important; }
+
+/* ====================================================
+   STYLE UNTUK TANDA TANGAN ZOOMABLE
+   ==================================================== */
+.ttd-img {
+    width: 80px; /* Ukuran default di tabel */
+    height: auto;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 2px;
+    background: #fff;
+    
+    /* Mengatur animasi perbesaran selama 0.3 detik */
+    transition: transform 0.3s ease, box-shadow 0.3s ease; 
+    
+    /* Z-index dasar */
+    position: relative;
+    z-index: 1; 
+}
+
+/* Efek ketika mouse diarahkan ke gambar (Hover) */
+.ttd-img:hover {
+    transform: scale(3); /* Memperbesar gambar 3 kali lipat */
+    z-index: 10; /* Memastikan gambar berada di lapisan paling atas menutupi teks lain */
+    cursor: zoom-in; /* Mengubah kursor mouse menjadi ikon kaca pembesar */
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3); /* Memberikan bayangan agar terlihat timbul */
 }

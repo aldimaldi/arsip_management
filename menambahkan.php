@@ -6,6 +6,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $kode_arsip           = mysqli_real_escape_string($koneksi, $_POST['kode_arsip']);
     $perihal              = mysqli_real_escape_string($koneksi, $_POST['perihal']);
     $periode              = mysqli_real_escape_string($koneksi, $_POST['periode']);
+    $nomer_dokumen        = mysqli_real_escape_string($koneksi, $_POST['nomer_dokumen']);
     $peta_lokasi          = mysqli_real_escape_string($koneksi, $_POST['peta_lokasi']); 
     $ruangan              = mysqli_real_escape_string($koneksi, $_POST['ruangan']);
     $no_rak               = mysqli_real_escape_string($koneksi, $_POST['no_rak']);
@@ -15,11 +16,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $jenis_aktivitas      = "Menambahkan";
     $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']); 
 
+    // var_dump($_POST); die;
+
     mysqli_begin_transaction($koneksi);
 
     try {
-        $sql_arsip = "INSERT INTO arsip (unit_pengolahan, kode_arsip, perihal, periode, peta_lokasi, ruangan, no_rak, tingkatan_rak) 
-            VALUES ('$unit_pengolahan', '$kode_arsip', '$perihal', '$periode', '$peta_lokasi', '$ruangan', '$no_rak', '$tingkatan_rak')";
+        $sql_arsip = "INSERT INTO arsip (unit_pengolahan, kode_arsip, perihal, periode, nomer_dokumen, peta_lokasi, ruangan, no_rak, tingkatan_rak) 
+            VALUES ('$unit_pengolahan', '$kode_arsip', '$perihal', '$periode', '$nomer_dokumen', '$peta_lokasi', '$ruangan', '$no_rak', '$tingkatan_rak')";
 
         if (mysqli_query($koneksi, $sql_arsip)){
             $arsip_id = mysqli_insert_id($koneksi);
@@ -31,21 +34,81 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 mysqli_commit($koneksi); 
 
                 echo "<script>
-                        alert('Data arsip dan log sukses disimpan ke database!'); 
-                        window.location='index.php';
+                        document.addEventListener('DOMContentLoaded', function() {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end', // Ubah ke 'bottom-end' jika ingin di bawah
+                                icon: 'success',
+                                title: 'Data arsip sukses disimpan!',
+                                showConfirmButton: false,
+                                timer: 1500, // Waktu tampil 1.5 detik
+                                timerProgressBar: true
+                            }).then(function() {
+                                // Pindah halaman setelah animasi Toast selesai
+                                window.location = 'index.php';
+                            });
+                        });
                     </script>";
             } else {
                 mysqli_rollback($koneksi);
-                echo "Gagal menyimpan log: " . mysqli_error($koneksi);
+                $pesan_error = addslashes(mysqli_error($koneksi)); // Amankan tanda kutip
+                
+                echo "
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'error',
+                            title: 'Gagal Menyimpan Log!',
+                            text: '$pesan_error',
+                            showConfirmButton: false,
+                            timer: 4000,
+                            timerProgressBar: true
+                        });
+                    });
+                </script>";
             }
         } else {
             mysqli_rollback($koneksi);
-            echo "Gagal menyimpan data arsip: " . mysqli_error($koneksi);
+            $pesan_error = addslashes(mysqli_error($koneksi));
+            
+            echo "
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'error',
+                        title: 'Gagal Menyimpan Arsip!',
+                        text: '$pesan_error',
+                        showConfirmButton: false,
+                        timer: 4000,
+                        timerProgressBar: true
+                    });
+                });
+            </script>";
         }
             
     } catch (mysqli_sql_exception $exception) {
         mysqli_rollback($koneksi);
-        echo "Gagal menyimpan data karena error sistem: " . $exception->getMessage();
+        $pesan_error = addslashes($exception->getMessage());
+        
+        echo "
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'error',
+                    title: 'Error Sistem Database!',
+                    text: '$pesan_error',
+                    showConfirmButton: false,
+                    timer: 5000,
+                    timerProgressBar: true
+                });
+            });
+        </script>";
     }
 }
 ?>
@@ -87,8 +150,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <div class="card card-grid">
             <div class="form-group">
                 <label>Unit Pengolahan</label>
-                <select name="unit_pengolahan" class="form-control" required>
-                    <option value="">Pilih Unit Pengolahan</option>
+                <input type="text" name="unit_pengolahan" class="form-control" value="KCP Bogor" readonly required>
+            </div>
+            <div class="form-group">
+                <label>Perihal</label>
+                <select name="perihal" id="perihal" class="form-control" required>
+                    <option value="">Pilih Perihal Dokumen</option>
                     <option value="customer service">Customer Service</option>
                     <option value="teller">Teller</option>
                     <option value="kredit">Kredit</option>
@@ -96,53 +163,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </select>
             </div>
             <div class="form-group">
-                <label>Kode Arsip</label>
-                <input type="text" name="kode_arsip" class="form-control" placeholder="Masukan Kode Arsip" required>
-            </div>
-            <div class="form-group">
-                <label>Perihal</label>
-                <input type="text" name="perihal" class="form-control" placeholder="Masukan Judul Dokumen" required>
-            </div>
-            <div class="form-group">
                 <label>Periode</label>
-                <input type="date" name="periode" class="form-control" placeholder="Masukan Periode" required>
+                <input type="date" name="periode" id="periode" class="form-control" placeholder="Masukan Periode" required>
+            </div>
+            <div class="form-group">
+                <label>Kode Arsip</label>
+                <input type="text" name="kode_arsip" id="kode_arsip" class="form-control" value="" required readonly>
+            </div>
+            <div class="form-group">
+                <label>Peta Lokasi</label>
+                <input type="text" name="peta_lokasi" class="form-control" placeholder="Contoh: Bogor" required>
+            </div>
+            <div class="form-group">
+                <label>Dokumen Ke</label>
+                <input type="number" name="nomer_dokumen" class="form-control" placeholder="Masukan Dokumen ke berapa" required>
             </div>
         </div>
 
-        <div class="section-title">Informasi Ruangan</div>
+        <div class="section-title">Informasi Tata Letak</div>
         <div class="card card-grid">
             <div class="form-group">
-                <label>Peta Lokasi</label>
-                <select name="peta_lokasi" class="form-control" required>
-                    <option value="">Pilih Lokasi</option>
-                    <option value="Lantai 2">Lantai 2</option>
-                    <option value="Lantai 3">Lantai 3</option>
-                </select>
-            </div>
-            <div class="form-group">
                 <label>Ruangan</label>
-                <select name="ruangan" class="form-control" required>
-                    <option value="">Pilih Ruangan</option>
-                    <option value="Ruangan Arsip">Ruangan Arsip</option>
-                </select>
+                <input type="text" name="ruangan" class="form-control" placeholder="Contoh: Ruangan Arsip Lantai 1" required>
             </div>
             <div class="form-group">
                 <label>No Rak</label>
                 <select name="no_rak" class="form-control" required>
                     <option value="">Pilih No Rak</option>
-                    <option value="Rak 1">Rak 1</option>
-                    <option value="Rak 2">Rak 2</option>
-                    <option value="Rak 3">Rak 3</option>
-                    <option value="Rak 4">Rak 4</option>
-                    <option value="Rak 5">Rak 5</option>
-                    <option value="Rak 6">Rak 6</option>
-                    <option value="Rak 7">Rak 7</option>
-                    <option value="Rak 8">Rak 8</option>
-                    <option value="Rak 9">Rak 9</option>
-                    <option value="Rak 10">Rak 10</option>
-                    <option value="Rak 11">Rak 11</option>
-                    <option value="Rak 12">Rak 12</option>
-                    <option value="Rak 13">Rak 13</option>
+                    <?php for($i=1; $i<=20; $i++) { echo "<option value='Rak $i'>Rak $i</option>"; } ?>
                 </select>
             </div>
             <div class="form-group">
@@ -182,53 +230,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </form>
 </div>
 
-<script>
-    // 1. Inisialisasi Canvas dan SignaturePad
-    const canvas = document.getElementById('canvasTtd');
-    const signaturePad = new SignaturePad(canvas, {
-        backgroundColor: 'rgba(255, 255, 255, 0)', 
-        penColor: 'rgb(12, 62, 104)' // Menggunakan warna pulpen biru gelap khas Mandiri Taspen
-    });
-
-    // 2. Fungsi menyesuaikan ukuran canvas dengan pembungkusnya
-    function resizeCanvas() {
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        canvas.width = canvas.offsetWidth * ratio;
-        canvas.height = canvas.offsetHeight * ratio;
-        canvas.getContext("2d").scale(ratio, ratio);
-        signaturePad.clear(); 
-    }
-
-    window.addEventListener("resize", resizeCanvas);
-    document.addEventListener("DOMContentLoaded", resizeCanvas);
-
-    // 3. Tombol Ulang / Hapus Coretan
-    document.getElementById('btnHapus').addEventListener('click', function() {
-        signaturePad.clear();
-        document.getElementById('inputTtd').value = ""; 
-        alert('Coretan tanda tangan dibersihkan.');
-    });
-
-    // 4. Tombol Konfirmasi Tanda Tangan
-    document.getElementById('btnKonfirmasi').addEventListener('click', function() {
-        if (signaturePad.isEmpty()) {
-            alert("Silakan buat tanda tangan terlebih dahulu!");
-        } else {
-            const dataDataUrl = signaturePad.toDataURL('image/png');
-            document.getElementById('inputTtd').value = dataDataUrl;
-            alert("Tanda tangan berhasil dikonfirmasi!");
-        }
-    });
-
-    // 5. PERBAIKAN 5: Validasi diubah mencari id "formTambahArsip"
-    document.getElementById('formTambahArsip').addEventListener('submit', function(e) {
-        const inputTtdValue = document.getElementById('inputTtd').value;
-        if (!inputTtdValue || signaturePad.isEmpty()) {
-            e.preventDefault(); 
-            alert("Anda belum menekan tombol 'Konfirmasi' pada tanda tangan!");
-        }
-    });
-</script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="script.js"></script>
 
 </body>
 </html>

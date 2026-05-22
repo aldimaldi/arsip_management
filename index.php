@@ -53,6 +53,7 @@ if (!$result) {
                             <th>Nama</th>
                             <th>Keterangan</th>
                             <th>Dokumen</th>
+                            <th>TTD</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -69,6 +70,11 @@ if (!$result) {
                                 echo "<td>" . $row['keterangan_aktivitas'] . "</td>";
                                 $dokumen = $row['kode_arsip'] ? $row['kode_arsip'] . " - " . $row['perihal'] . "</small>" : "<i style='color:red;'>Dokumen tidak ditemukan</i>";
                                 echo "<td>" . $dokumen . "</td>";
+                                if (!empty($row['ttd'])) {
+                                    echo "<td><img src='" . $row['ttd'] . "' alt='Tanda Tangan' class='ttd-img'></td>";
+                                } else {
+                                    echo "<td>-</td>";
+                                }
                                 echo "</tr>";
                             }
                         } else {
