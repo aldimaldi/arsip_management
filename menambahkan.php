@@ -15,20 +15,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $keterangan_aktivitas = 'Menambahkan arsip baru ke sistem';
     $jenis_aktivitas      = "Menambahkan";
     $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']); 
-
+    $jam_masuk            = mysqli_real_escape_string($koneksi, $_POST['jam_masuk']);
+    $jam_keluar           = mysqli_real_escape_string($koneksi, $_POST['jam_keluar']);
+    $waktu_sekarang = date('Y-m-d H:i:s');
     // var_dump($_POST); die;
+
 
     mysqli_begin_transaction($koneksi);
 
     try {
-        $sql_arsip = "INSERT INTO arsip (unit_pengolahan, kode_arsip, perihal, periode, nomer_dokumen, peta_lokasi, ruangan, no_rak, tingkatan_rak) 
-            VALUES ('$unit_pengolahan', '$kode_arsip', '$perihal', '$periode', '$nomer_dokumen', '$peta_lokasi', '$ruangan', '$no_rak', '$tingkatan_rak')";
+        $sql_arsip = "INSERT INTO arsip (unit_pengolahan, kode_arsip, perihal, periode, nomer_dokumen, peta_lokasi, ruangan, no_rak, tingkatan_rak, created_at) 
+            VALUES ('$unit_pengolahan', '$kode_arsip', '$perihal', '$periode', '$nomer_dokumen', '$peta_lokasi', '$ruangan', '$no_rak', '$tingkatan_rak', '$waktu_sekarang')";
 
         if (mysqli_query($koneksi, $sql_arsip)){
             $arsip_id = mysqli_insert_id($koneksi);
 
-            $sql_log = "INSERT INTO log_book (arsip_id, nama, jenis_aktivitas, keterangan_aktivitas, ttd) 
-                VALUES ('$arsip_id', '$nama', '$jenis_aktivitas', '$keterangan_aktivitas', '$ttd')";
+            $sql_log = "INSERT INTO log_book (arsip_id, nama, jenis_aktivitas, keterangan_aktivitas, ttd, created_at, jam_masuk, jam_keluar) 
+                VALUES ('$arsip_id', '$nama', '$jenis_aktivitas', '$keterangan_aktivitas', '$ttd', '$waktu_sekarang', '$jam_masuk', '$jam_keluar')";
 
             if (mysqli_query($koneksi, $sql_log)) {
                 mysqli_commit($koneksi); 
@@ -131,6 +134,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <div class="tabs-container">
         <a href="index.php" class="tab">Log Book</a>
+        <a href="pengecekan.php" class="tab ">pengecekan</a>
         <a href="menambahkan.php" class="tab active">Menambahkan</a>
         <a href="meminjam.php" class="tab">Meminjam</a>
         <a href="memindahkan.php" class="tab">Memindahkan</a>
@@ -139,10 +143,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <form action="" method="POST" class="form-area" id="formTambahArsip">
 
         <div class="section-title">Informasi Kariyawan</div>
-        <div class="card card-grid">
+        <div class="card">
             <div class="form-group">
                 <label>Nama</label>
                 <input type="text" name="nama" class="form-control" placeholder="Masukan nama karyawan" required>
+            </div>
+            <div class="form-group">
+                <label>Waktu Kunjungan ke Ruang Arsip</label>
+                <div style="display: flex; gap: 15px; margin-top: 5px;">
+                    <div style="flex: 1;">
+                        <span style="font-size: 10px; color: #666; display: block; margin-bottom: 6px;">Jam Masuk</span>
+                        <input type="time" name="jam_masuk" class="form-control" required>
+                    </div>
+                    <div style="flex: 1;">
+                        <span style="font-size: 10px; color: #666; display: block; margin-bottom: 6px;">Jam Keluar</span>
+                        <input type="time" name="jam_keluar" class="form-control" required>
+                    </div>
+                </div>
             </div>
         </div>
         

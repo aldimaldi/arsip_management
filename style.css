@@ -51,9 +51,13 @@ body {
 /* Tabs */
 .tabs-container {
     display: flex;
-    justify-content: space-between;
+    /* justify-content: space-between; <-- Hapus baris ini */
+    justify-content: flex-start; /* Ganti menjadi flex-start agar saat di-scroll posisinya mulai dari kiri */
+    gap: 15px; /* Gunakan gap sebagai pengganti space-between untuk memberi jarak antar tab */
     padding: 0 15px 15px 15px;
     border-bottom: 1px solid #e0e0e0;
+    overflow-x: auto; 
+    -webkit-overflow-scrolling: touch;
 }
 
 .tab {
@@ -67,6 +71,8 @@ body {
     color: #333;
     flex: 1;
     text-align: center;
+    flex-shrink: 0; 
+    white-space: nowrap;
 }
 
 .tab.active {
@@ -380,4 +386,104 @@ select.form-control {
     z-index: 10; /* Memastikan gambar berada di lapisan paling atas menutupi teks lain */
     cursor: zoom-in; /* Mengubah kursor mouse menjadi ikon kaca pembesar */
     box-shadow: 0 5px 15px rgba(0,0,0,0.3); /* Memberikan bayangan agar terlihat timbul */
+}
+
+/* ====================================================
+   STYLE UNTUK CUSTOM CHECKBOX
+   ==================================================== */
+/* Wadah untuk menata jarak antar checkbox (menurun ke bawah) */
+.checkbox-wrapper {
+    display: flex;
+    flex-direction: column; 
+    gap: 12px; /* Jarak antar pilihan */
+    margin-top: 8px;
+}
+
+/* Membungkus label dan kotak agar rapi sejajar */
+.custom-checkbox {
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+    padding-left: 32px; /* Memberi ruang untuk kotak buatan kita di sebelah kiri */
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: normal; /* Mengurangi tebal teks agar beda dengan label judul */
+    user-select: none; /* Mencegah teks terblok biru tanpa sengaja saat diklik cepat */
+    color: #444;
+}
+
+/* 1. Sembunyikan checkbox asli bawaan browser */
+.custom-checkbox input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+/* 2. Buat kotak kosong sebagai penggantinya */
+.custom-checkbox .checkmark {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    height: 20px;
+    width: 20px;
+    background-color: #fff;
+    border: 2px solid #ccc;
+    border-radius: 4px; /* Sudut melengkung halus */
+    transition: all 0.2s ease-in-out; /* Animasi transisi halus saat diklik/hover */
+}
+
+/* Efek outline biru saat mouse diarahkan (Hover) */
+.custom-checkbox:hover input ~ .checkmark {
+    border-color: #0c3e68; 
+}
+
+/* 3. Perubahan saat kotak dicentang (Checked) */
+.custom-checkbox input:checked ~ .checkmark {
+    background-color: #0c3e68; /* Background berubah jadi biru khas tema Anda */
+    border-color: #0c3e68;
+}
+
+/* Menyiapkan elemen untuk logo centang/ceklis (awalnya disembunyikan) */
+.custom-checkbox .checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+}
+
+/* Tampilkan logo centang saat status input adalah checked */
+.custom-checkbox input:checked ~ .checkmark:after {
+    display: block;
+}
+
+/* 4. Membentuk logo centang secara matematis menggunakan border */
+.custom-checkbox .checkmark:after {
+    left: 6px;
+    top: 2px;
+    width: 5px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0; /* Hanya buat garis di kanan dan bawah */
+    transform: rotate(45deg); /* Putar garisnya hingga menyerupai centang */
+}
+
+/* ====================================================
+   STYLE UNTUK KETERANGAN TOOLTIP (TRUNCATE)
+   ==================================================== */
+.keterangan-tooltip {
+    max-width: 220px; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    cursor: pointer; 
+    display: block; 
+    color: inherit; /* Mengikuti warna teks bawaan tabel (hitam/abu) */
+    font-weight: normal; /* Mengembalikan ketebalan huruf ke normal */
+}
+
+/* Efek saat disorot mouse (opsional agar user tahu ini bisa diklik) */
+.keterangan-tooltip:hover {
+    text-decoration: underline;
 }

@@ -12,12 +12,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $jenis_aktivitas      = "Meminjam";
     $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']);
     $keterangan_aktivitas = "Dokumen: " . $nama_dokumen . " | Alasan: " . $keterangan; 
+    $waktu_sekarang = date('Y-m-d H:i:s');
+    $jam_masuk            = mysqli_real_escape_string($koneksi, $_POST['jam_masuk']);
+    $jam_keluar            = mysqli_real_escape_string($koneksi, $_POST['jam_keluar']);
     
     mysqli_begin_transaction($koneksi);
     
     try {
-        $sql_log = "INSERT INTO log_book (arsip_id, nama, jenis_aktivitas, keterangan_aktivitas, ttd) 
-                    VALUES ('$arsip_id', '$nama', '$jenis_aktivitas', '$keterangan_aktivitas', '$ttd')";
+        $sql_log = "INSERT INTO log_book (arsip_id, nama, jenis_aktivitas, keterangan_aktivitas, ttd, created_at, jam_masuk, jam_keluar) 
+                    VALUES ('$arsip_id', '$nama', '$jenis_aktivitas', '$keterangan_aktivitas', '$ttd', '$waktu_sekarang', '$jam_masuk', '$jam_keluar')";
         mysqli_query($koneksi, $sql_log);
         
         mysqli_commit($koneksi);
@@ -81,6 +84,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <div class="tabs-container">
         <a href="index.php" class="tab ">Log Book</a>
+        <a href="pengecekan.php" class="tab ">pengecekan</a>
         <a href="menambahkan.php" class="tab">Menambahkan</a>
         <a href="meminjam.php" class="tab active">Meminjam</a>
         <a href="memindahkan.php" class="tab">Memindahkan</a>
@@ -88,12 +92,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <form action="" method="POST" class="form-area" id="formPeminjaman">
         
-        <div class="section-title">Informasi Dokumen</div>
+        <div class="section-title">Informasi Karyawan</div>
         <div class="card">
             <div class="form-group">
                 <label>Nama Peminjam</label>
                 <input type="text" name="nama" class="form-control" placeholder="Masukkan Nama Peminjam" required>
             </div>
+            <div class="form-group">
+                <label>Waktu Kunjungan ke Ruang Arsip</label>
+                <div style="display: flex; gap: 15px; margin-top: 5px;">
+                    <div style="flex: 1;">
+                        <span style="font-size: 10px; color: #666; display: block; margin-bottom: 6px;">Jam Masuk</span>
+                        <input type="time" name="jam_masuk" class="form-control" required>
+                    </div>
+                    <div style="flex: 1;">
+                        <span style="font-size: 10px; color: #666; display: block; margin-bottom: 6px;">Jam Keluar</span>
+                        <input type="time" name="jam_keluar" class="form-control" required>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Informasi Dokumen</div>
+        <div class="card">
             <div class="form-group">
                 <label>Pilih Kardus Arsip</label>
                 <select name="arsip_id" class="form-control" id="search" required>

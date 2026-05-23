@@ -13,27 +13,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $keterangan_aktivitas = mysqli_real_escape_string($koneksi, $_POST['keterangan_aktivitas']);
     $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']);
     $jenis_aktivitas      = "Memindahkan";
-    
-    // // Proses decode tanda tangan dari Base64 ke File Gambar PNG
-    // $ttd_base64 = $_POST['ttd_base64'];
-    // $nama_file_ttd = NULL;
+    $waktu_sekarang = date('Y-m-d H:i:s');
+    $jam_masuk            = mysqli_real_escape_string($koneksi, $_POST['jam_masuk']);
+    $jam_keluar           = mysqli_real_escape_string($koneksi, $_POST['jam_keluar']);
 
-    // if (!empty($ttd_base64) && $ttd_base64 != "empty") {
-    //     // Hapus metadata base64
-    //     $filteredData = explode(',', $ttd_base64);
-    //     if(isset($filteredData[1])) {
-    //         $unencodedData = base64_decode($filteredData[1]);
-            
-    //         // Nama file unik untuk tanda tangan
-    //         $nama_file_ttd = "ttd_" . time() . "_" . uniqid() . ".png";
-    //         $target_path = "uploads/" . $nama_file_ttd;
-            
-    //         // Simpan gambar ke folder uploads
-    //         file_put_contents($target_path, $unencodedData);
-    //     }
-    // }
-
-    // Mulai proses transaksi database
     mysqli_begin_transaction($koneksi);
     
     // var_dump($_POST); die;
@@ -42,13 +25,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $sql_update_arsip = "UPDATE arsip SET 
                                 ruangan = '$ruangan', 
                                 no_rak = '$no_rak', 
-                                tingkatan_rak = '$tingkatan_rak' 
+                                tingkatan_rak = '$tingkatan_rak', 
+                                updated_at = '$waktu_sekarang'
                              WHERE id = '$arsip_id'";
         mysqli_query($koneksi, $sql_update_arsip);
         
         // b. Catat riwayat pemindahan ke tabel log_book beserta nama file tanda tangan
-        $sql_insert_log = "INSERT INTO log_book (arsip_id, nama, ttd, jenis_aktivitas, keterangan_aktivitas) 
-                           VALUES ('$arsip_id', '$nama', '$ttd', '$jenis_aktivitas', '$keterangan_aktivitas')";
+        $sql_insert_log = "INSERT INTO log_book (arsip_id, nama, ttd, jenis_aktivitas, keterangan_aktivitas, created_at, jam_masuk, jam_keluar) 
+                           VALUES ('$arsip_id', '$nama', '$ttd', '$jenis_aktivitas', '$keterangan_aktivitas', '$waktu_sekarang', '$jam_masuk', '$jam_keluar')";
         mysqli_query($koneksi, $sql_insert_log);
         
         // Komit transaksi
@@ -113,6 +97,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <div class="tabs-container">
         <a href="index.php" class="tab ">Log Book</a>
+        <a href="pengecekan.php" class="tab ">pengecekan</a>
         <a href="menambahkan.php" class="tab">Menambahkan</a>
         <a href="meminjam.php" class="tab">Meminjam</a>
         <a href="memindahkan.php" class="tab active">Memindahkan</a>
@@ -125,6 +110,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="form-group">
                 <label>Nama Pemindah</label>
                 <input type="text" name="nama" class="form-control" placeholder="Masukkan Nama Pemindah" required>
+            </div>
+            <div class="form-group">
+                <label>Waktu Kunjungan ke Ruang Arsip</label>
+                <div style="display: flex; gap: 15px; margin-top: 5px;">
+                    <div style="flex: 1;">
+                        <span style="font-size: 10px; color: #666; display: block; margin-bottom: 6px;">Jam Masuk</span>
+                        <input type="time" name="jam_masuk" class="form-control" required>
+                    </div>
+                    <div style="flex: 1;">
+                        <span style="font-size: 10px; color: #666; display: block; margin-bottom: 6px;">Jam Keluar</span>
+                        <input type="time" name="jam_keluar" class="form-control" required>
+                    </div>
+                </div>
             </div>
         </div>
 
