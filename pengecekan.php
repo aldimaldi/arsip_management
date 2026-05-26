@@ -8,93 +8,95 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // 1. Tangkap respon dari kotak reCAPTCHA
     $recaptcha_response = $_POST['g-recaptcha-response'];
     
-    // // 2. Cek jika pengguna lupa mencentang kotak
-    // if (empty($recaptcha_response)) {
-    //     // Hentikan proses dan beri pesan peringatan (Bisa Anda ganti dengan SweetAlert)
-    //     echo "<script>
-    //         document.addEventListener('DOMContentLoaded', function() {
-    //             Swal.fire({
-    //                 toast: true,
-    //                 position: 'top-end',
-    //                 icon: 'error',
-    //                 title: 'Error Sistem Database!',
-    //                 text: 'Centang Captca Terlebih Dahulu !',
-    //                 showConfirmButton: false,
-    //                 timer: 5000,
-    //                 timerProgressBar: true
-    //             });
-    //         });
-    //     </script>";
-    //     exit;
-    // }
-    
-    // 3. Proses verifikasi respon ke server Google
+    // Menggunakan konstanta RECAPTCHA_SECRET_KEY dari koneksi.php
     $verify_url = "https://www.google.com/recaptcha/api/siteverify?secret=" . $secret_key . "&response=" . $recaptcha_response;
     
     // Kirim request ke Google dan baca hasilnya
     $verify_response = file_get_contents($verify_url);
     $response_data = json_decode($verify_response);
     
-    // 4. Jika Google mendeteksi itu adalah Bot atau verifikasi gagal
+    // Jika Google mendeteksi itu adalah Bot atau verifikasi gagal
     if (!$response_data->success) {
         echo "<script>alert('Verifikasi CAPTCHA gagal. Anda terdeteksi sebagai robot.'); window.history.back();</script>";
         exit;
     }
     
-    $nama                 = mysqli_real_escape_string($koneksi, $_POST['nama']);
-    $jabatan              = mysqli_real_escape_string($koneksi, $_POST['jabatan']);
-    $jenis_aktivitas      = "Pengecekan";
-    $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']);
-    $jam_masuk            = mysqli_real_escape_string($koneksi, $_POST['jam_masuk']);
-    $jam_keluar            = mysqli_real_escape_string($koneksi, $_POST['jam_keluar']);
+    // 2. Tangkap Variabel (Tanpa mysqli_real_escape_string)
+    $nama       = $_POST['nama'];
+    $jabatan    = $_POST['jabatan'];
+    $ttd        = $_POST['ttd'];
+    $jam_masuk  = $_POST['jam_masuk'];
+    $jam_keluar = $_POST['jam_keluar'];
 
+    // =========================================================================
+    // LOGIKA PENANGANAN CHECKBOX (Array)
+    // =========================================================================
     if (isset($_POST['pengecekan']) && is_array($_POST['pengecekan'])) {
-        
-        // 2. Gabungkan array menjadi satu kalimat dengan koma
+        // Gabungkan array menjadi satu kalimat dengan koma
         $pengecekan_gabungan = implode(', ', $_POST['pengecekan']);
         
-        // 3. BARU KITA AMANKAN string yang sudah digabung tersebut
-        $pengecekan_aman = mysqli_real_escape_string($koneksi, $pengecekan_gabungan);
-        
-        // 4. Masukkan ke dalam format keterangan aktivitas
-        $keterangan_aktivitas = "melakukan: " . $pengecekan_aman;
-        
+        // Langsung masukkan ke variabel keterangan (Aman karena akan diproses Prepared Statement)
+        $keterangan_aktivitas = "melakukan: " . $pengecekan_gabungan;
     } else {
         // Jika tidak ada satu pun yang dicentang
         $keterangan_aktivitas = "Syarat terpenuhi: Tidak ada";
     }
 
-    $waktu_sekarang = date('Y-m-d H:i:s');
+    // Data Otomatis Internal Sistem
+    $jenis_aktivitas = "Pengecekan";
+    $waktu_sekarang  = date('Y-m-d H:i:s');
     
+    // Mulai Transaksi Database
     mysqli_begin_transaction($koneksi);
     
     try {
+        // =========================================================================
+        // PREPARED STATEMENT (Anti SQL Injection)
+        // =========================================================================
         $sql_log = "INSERT INTO log_book (nama, jabatan, jenis_aktivitas, keterangan_aktivitas, ttd, created_at, jam_masuk, jam_keluar) 
-                    VALUES ('$nama', '$jabatan', '$jenis_aktivitas', '$keterangan_aktivitas', '$ttd', '$waktu_sekarang', '$jam_masuk', '$jam_keluar')";
-        mysqli_query($koneksi, $sql_log);
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                    
+        $stmt_log = mysqli_prepare($koneksi, $sql_log);
         
+        // "ssssssss" -> Ke-8 parameter adalah tipe String (Teks)
+        mysqli_stmt_bind_param($stmt_log, "ssssssss", $nama, $jabatan, $jenis_aktivitas, $keterangan_aktivitas, $ttd, $waktu_sekarang, $jam_masuk, $jam_keluar);
+        
+        if (!mysqli_stmt_execute($stmt_log)) {
+            throw new Exception("Gagal menyimpan data pengecekan ke log book.");
+        }
+        
+        // Simpan permanen
         mysqli_commit($koneksi);
+        mysqli_stmt_close($stmt_log);
         
+        // SweetAlert Sukses
         echo "<script>
                 document.addEventListener('DOMContentLoaded', function() {
                     Swal.fire({
                         toast: true,
-                        position: 'top-end', // Ubah ke 'bottom-end' jika ingin di bawah
+                        position: 'top-end',
                         icon: 'success',
                         title: 'Data pengecekan arsip berhasil disimpan!',
                         showConfirmButton: false,
-                        timer: 1500, // Waktu tampil 1.5 detik
+                        timer: 1500,
                         timerProgressBar: true
                     }).then(function() {
-                        // Pindah halaman setelah animasi Toast selesai
                         window.location = 'index.php';
                     });
                 });
               </script>";
-    } catch (mysqli_sql_exception $exception) {
+              
+    } catch (Exception $exception) {
+        // Batalkan (Rollback) jika gagal
         mysqli_rollback($koneksi);
-        $pesan_error = addslashes($exception->getMessage());
         
+        // Simpan error asli ke dalam file log server secara rahasia
+        error_log("Pengecekan Error: " . $exception->getMessage());
+        
+        // Pesan error umum yang aman untuk dilihat pengguna
+        $pesan_aman_user = "Terjadi kendala pada sistem database saat menyimpan data pengecekan. Silakan hubungi admin.";
+        
+        // Tampilkan Notifikasi Gagal (Aman dari XSS via json_encode)
         echo "
         <script>
             document.addEventListener('DOMContentLoaded', function() {
@@ -103,7 +105,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     position: 'top-end',
                     icon: 'error',
                     title: 'Error Sistem Database!',
-                    text: '$pesan_error',
+                    text: " . json_encode($pesan_aman_user) . ",
                     showConfirmButton: false,
                     timer: 5000,
                     timerProgressBar: true
@@ -236,37 +238,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="script.js"></script>
 <script>
-
-    // Menangkap form berdasarkan ID yang kita buat tadi
-    document.getElementById('formPengecekan').addEventListener('submit', function(e) {
-        
-        // Mengambil respon dari widget reCAPTCHA Google
-        let recaptchaResponse = grecaptcha.getResponse();
-        
-        // Jika responnya kosong (belum dicentang)
-        if (recaptchaResponse.length === 0) {
-            
-            // 1. TAHAN FORM! Jangan biarkan loading/pindah halaman
-            e.preventDefault(); 
-            
-            // 2. Munculkan SweetAlert Toast Anda yang keren itu
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'warning', // Saya ganti ke warning agar lebih pas untuk peringatan
-                title: 'Validasi Diperlukan',
-                text: 'Silakan centang Captcha terlebih dahulu!',
-                showConfirmButton: false,
-                timer: 4000,
-                timerProgressBar: true
-            });
-        }
-    });
-
     $("#search").select2({
         tags: true,
         placeholder: "Pilih atau ketik jabatan...",
-        allowClear: true,
         width: '100%'
     });
 </script>

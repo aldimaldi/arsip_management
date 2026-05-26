@@ -1,102 +1,124 @@
 <?php include "koneksi.php";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+
+    // 1. Tangkap respon dari kotak reCAPTCHA
+    $recaptcha_response = $_POST['g-recaptcha-response'];
     
-    $unit_pengolahan      = mysqli_real_escape_string($koneksi, $_POST['unit_pengolahan']);
-    $kode_arsip           = mysqli_real_escape_string($koneksi, $_POST['kode_arsip']);
-    $perihal              = mysqli_real_escape_string($koneksi, $_POST['perihal']);
-    $periode              = mysqli_real_escape_string($koneksi, $_POST['periode']);
-    $nomer_dokumen        = mysqli_real_escape_string($koneksi, $_POST['nomer_dokumen']);
-    $peta_lokasi          = mysqli_real_escape_string($koneksi, $_POST['peta_lokasi']); 
-    $ruangan              = mysqli_real_escape_string($koneksi, $_POST['ruangan']);
-    $no_rak               = mysqli_real_escape_string($koneksi, $_POST['no_rak']);
-    $tingkatan_rak        = mysqli_real_escape_string($koneksi, $_POST['tingkatan_rak']);
-    $nama                 = mysqli_real_escape_string($koneksi, $_POST['nama']);
+    // Gunakan konstanta RECAPTCHA_SECRET_KEY yang sudah kita buat di koneksi.php
+    $verify_url = "https://www.google.com/recaptcha/api/siteverify?secret=" . $secret_key . "&response=" . $recaptcha_response;
+    
+    // Kirim request ke Google dan baca hasilnya
+    $verify_response = file_get_contents($verify_url);
+    $response_data = json_decode($verify_response);
+    
+    // Jika verifikasi gagal
+    if (!$response_data->success) {
+        echo "<script>alert('Verifikasi CAPTCHA gagal. Anda terdeteksi sebagai robot.'); window.history.back();</script>";
+        exit;
+    }
+    
+    // 2. Tangkap Variabel (Tidak perlu lagi mysqli_real_escape_string!)
+    // Prepared statement akan mengamankan karakter berbahaya secara otomatis
+    $unit_pengolahan      = $_POST['unit_pengolahan'];
+    $kode_arsip           = $_POST['kode_arsip'];
+    $perihal              = $_POST['perihal'];
+    $periode              = $_POST['periode'];
+    $nomer_dokumen        = $_POST['nomer_dokumen'];
+    $peta_lokasi          = $_POST['peta_lokasi']; 
+    $ruangan              = $_POST['ruangan'];
+    $no_rak               = $_POST['no_rak'];
+    $tingkatan_rak        = $_POST['tingkatan_rak'];
+    $nama                 = $_POST['nama'];
+    $ttd                  = $_POST['ttd']; 
+    $jam_masuk            = $_POST['jam_masuk'];
+    $jam_keluar           = $_POST['jam_keluar'];
+    
+    // Data Otomatis
     $keterangan_aktivitas = 'Menambahkan arsip baru ke sistem';
     $jenis_aktivitas      = "Menambahkan";
-    $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']); 
-    $jam_masuk            = mysqli_real_escape_string($koneksi, $_POST['jam_masuk']);
-    $jam_keluar           = mysqli_real_escape_string($koneksi, $_POST['jam_keluar']);
-    $waktu_sekarang = date('Y-m-d H:i:s');
-    // var_dump($_POST); die;
+    $waktu_sekarang       = date('Y-m-d H:i:s');
 
-
+    // Mulai Transaksi
     mysqli_begin_transaction($koneksi);
 
     try {
+        // =========================================================================
+        // UPGRADE 1: PREPARED STATEMENT UNTUK ARSIP (Anti SQL Injection)
+        // Gunakan tanda tanya (?) sebagai pengganti variabel
+        // =========================================================================
         $sql_arsip = "INSERT INTO arsip (unit_pengolahan, kode_arsip, perihal, periode, nomer_dokumen, peta_lokasi, ruangan, no_rak, tingkatan_rak, created_at) 
-            VALUES ('$unit_pengolahan', '$kode_arsip', '$perihal', '$periode', '$nomer_dokumen', '$peta_lokasi', '$ruangan', '$no_rak', '$tingkatan_rak', '$waktu_sekarang')";
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        $stmt_arsip = mysqli_prepare($koneksi, $sql_arsip);
+        
+        // Hubungkan variabel dengan tanda tanya. 
+        // "ssssssssss" artinya ke-10 data tersebut adalah String (Teks)
+        mysqli_stmt_bind_param($stmt_arsip, "ssssssssss", $unit_pengolahan, $kode_arsip, $perihal, $periode, $nomer_dokumen, $peta_lokasi, $ruangan, $no_rak, $tingkatan_rak, $waktu_sekarang);
+        
+        // Eksekusi
+        if (!mysqli_stmt_execute($stmt_arsip)) {
+            throw new Exception("Gagal menyimpan data utama arsip.");
+        }
 
-        if (mysqli_query($koneksi, $sql_arsip)){
-            $arsip_id = mysqli_insert_id($koneksi);
+        $arsip_id = mysqli_insert_id($koneksi);
 
-            $sql_log = "INSERT INTO log_book (arsip_id, nama, jenis_aktivitas, keterangan_aktivitas, ttd, created_at, jam_masuk, jam_keluar) 
-                VALUES ('$arsip_id', '$nama', '$jenis_aktivitas', '$keterangan_aktivitas', '$ttd', '$waktu_sekarang', '$jam_masuk', '$jam_keluar')";
+        // =========================================================================
+        // UPGRADE 1 Lanjutan: PREPARED STATEMENT UNTUK LOG BOOK
+        // =========================================================================
+        $sql_log = "INSERT INTO log_book (arsip_id, nama, jenis_aktivitas, keterangan_aktivitas, ttd, created_at, jam_masuk, jam_keluar) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        $stmt_log = mysqli_prepare($koneksi, $sql_log);
+        
+        // "isssssss" artinya: 'i' (Integer untuk arsip_id), 's' (String untuk sisanya)
+        mysqli_stmt_bind_param($stmt_log, "isssssss", $arsip_id, $nama, $jenis_aktivitas, $keterangan_aktivitas, $ttd, $waktu_sekarang, $jam_masuk, $jam_keluar);
 
-            if (mysqli_query($koneksi, $sql_log)) {
-                mysqli_commit($koneksi); 
+        // Eksekusi
+        if (!mysqli_stmt_execute($stmt_log)) {
+            throw new Exception("Gagal menyimpan riwayat log book.");
+        }
 
-                echo "<script>
-                        document.addEventListener('DOMContentLoaded', function() {
-                            Swal.fire({
-                                toast: true,
-                                position: 'top-end', // Ubah ke 'bottom-end' jika ingin di bawah
-                                icon: 'success',
-                                title: 'Data arsip sukses disimpan!',
-                                showConfirmButton: false,
-                                timer: 1500, // Waktu tampil 1.5 detik
-                                timerProgressBar: true
-                            }).then(function() {
-                                // Pindah halaman setelah animasi Toast selesai
-                                window.location = 'index.php';
-                            });
-                        });
-                    </script>";
-            } else {
-                mysqli_rollback($koneksi);
-                $pesan_error = addslashes(mysqli_error($koneksi)); // Amankan tanda kutip
-                
-                echo "
-                <script>
-                    document.addEventListener('DOMContentLoaded', function() {
-                        Swal.fire({
-                            toast: true,
-                            position: 'top-end',
-                            icon: 'error',
-                            title: 'Gagal Menyimpan Log!',
-                            text: '$pesan_error',
-                            showConfirmButton: false,
-                            timer: 4000,
-                            timerProgressBar: true
-                        });
-                    });
-                </script>";
-            }
-        } else {
-            mysqli_rollback($koneksi);
-            $pesan_error = addslashes(mysqli_error($koneksi));
-            
-            echo "
-            <script>
+        // Permanenkan data jika sukses semua
+        mysqli_commit($koneksi); 
+        mysqli_stmt_close($stmt_arsip);
+        mysqli_stmt_close($stmt_log);
+
+        // SweetAlert Sukses
+        echo "<script>
                 document.addEventListener('DOMContentLoaded', function() {
                     Swal.fire({
                         toast: true,
                         position: 'top-end',
-                        icon: 'error',
-                        title: 'Gagal Menyimpan Arsip!',
-                        text: '$pesan_error',
+                        icon: 'success',
+                        title: 'Data arsip sukses disimpan!',
                         showConfirmButton: false,
-                        timer: 4000,
+                        timer: 1500,
                         timerProgressBar: true
+                    }).then(function() {
+                        window.location = 'index.php';
                     });
                 });
-            </script>";
-        }
-            
-    } catch (mysqli_sql_exception $exception) {
+              </script>";
+
+    } catch (Exception $e) {
+        // Batalkan perubahan (Rollback)
         mysqli_rollback($koneksi);
-        $pesan_error = addslashes($exception->getMessage());
         
+        // =========================================================================
+        // UPGRADE 2: MENCEGAH INFORMATION DISCLOSURE
+        // Jangan pernah munculkan error asli dari MySQL ke layar user!
+        // =========================================================================
+        
+        // Simpan error aslinya secara diam-diam di file log server (untuk Anda baca jika mau nge-debug)
+        error_log("Database Error: " . $e->getMessage()); 
+        
+        // Buat pesan error bohongan (umum) untuk ditampilkan ke user
+        $pesan_untuk_user = "Terjadi gangguan saat menyimpan ke database. Silakan hubungi admin.";
+        
+        // =========================================================================
+        // UPGRADE 3: json_encode (Anti XSS untuk JavaScript)
+        // =========================================================================
         echo "
         <script>
             document.addEventListener('DOMContentLoaded', function() {
@@ -104,10 +126,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     toast: true,
                     position: 'top-end',
                     icon: 'error',
-                    title: 'Error Sistem Database!',
-                    text: '$pesan_error',
+                    title: 'Sistem Gagal Memproses!',
+                    text: " . json_encode($pesan_untuk_user) . ",
                     showConfirmButton: false,
-                    timer: 5000,
+                    timer: 4000,
                     timerProgressBar: true
                 });
             });
@@ -239,6 +261,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </div>
             </div>
         </div>
+        <div class="form-group" style="margin-top: 15px;">
+            <div class="g-recaptcha" data-sitekey="<?php echo $site_key; ?>"></div>
+        </div>
 
         <div class="main-actions">
             <button type="submit" class="btn-lg btn-primary">Kirim</button>
@@ -247,6 +272,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </form>
 </div>
 
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="script.js"></script>
 

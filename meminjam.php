@@ -4,47 +4,89 @@ include "koneksi.php";
 
 // 2. Logika untuk memproses data ketika form dikirim (Method POST)
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+
+    // 1. Tangkap respon dari kotak reCAPTCHA
+    $recaptcha_response = $_POST['g-recaptcha-response'];
     
-    $arsip_id             = mysqli_real_escape_string($koneksi, $_POST['arsip_id']);
-    $nama                 = mysqli_real_escape_string($koneksi, $_POST['nama']);
-    $nama_dokumen         = mysqli_real_escape_string($koneksi, $_POST['nama_dokumen']);
-    $keterangan           = mysqli_real_escape_string($koneksi, $_POST['keterangan']);
+    // Menggunakan konstanta RECAPTCHA_SECRET_KEY yang tersimpan di koneksi.php
+    $verify_url = "https://www.google.com/recaptcha/api/siteverify?secret=" . $secret_key . "&response=" . $recaptcha_response;
+    
+    // Kirim request ke Google dan baca hasilnya
+    $verify_response = file_get_contents($verify_url);
+    $response_data = json_decode($verify_response);
+    
+    // Jika Google mendeteksi itu adalah Bot atau verifikasi gagal
+    if (!$response_data->success) {
+        echo "<script>alert('Verifikasi CAPTCHA gagal. Anda terdeteksi sebagai robot.'); window.history.back();</script>";
+        exit;
+    }
+    
+    // 2. Tangkap Variabel Langsung (Tidak perlu mysqli_real_escape_string lagi)
+    $arsip_id        = $_POST['arsip_id'];
+    $nama            = $_POST['nama'];
+    $nama_dokumen    = $_POST['nama_dokumen'];
+    $keterangan      = $_POST['keterangan'];
+    $ttd             = $_POST['ttd'];
+    $jam_masuk       = $_POST['jam_masuk'];
+    $jam_keluar      = $_POST['jam_keluar'];
+    
+    // Data Otomatis Internal Sistem
     $jenis_aktivitas      = "Meminjam";
-    $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']);
     $keterangan_aktivitas = "Dokumen: " . $nama_dokumen . " | Alasan: " . $keterangan; 
-    $waktu_sekarang = date('Y-m-d H:i:s');
-    $jam_masuk            = mysqli_real_escape_string($koneksi, $_POST['jam_masuk']);
-    $jam_keluar            = mysqli_real_escape_string($koneksi, $_POST['jam_keluar']);
+    $waktu_sekarang       = date('Y-m-d H:i:s');
     
+    // Mulai Transaksi Database
     mysqli_begin_transaction($koneksi);
     
     try {
+        // =========================================================================
+        // IMPLEMENTASI PREPARED STATEMENT (Kebal SQL Injection)
+        // =========================================================================
         $sql_log = "INSERT INTO log_book (arsip_id, nama, jenis_aktivitas, keterangan_aktivitas, ttd, created_at, jam_masuk, jam_keluar) 
-                    VALUES ('$arsip_id', '$nama', '$jenis_aktivitas', '$keterangan_aktivitas', '$ttd', '$waktu_sekarang', '$jam_masuk', '$jam_keluar')";
-        mysqli_query($koneksi, $sql_log);
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         
+        $stmt_log = mysqli_prepare($koneksi, $sql_log);
+        
+        // "isssssss" -> 'i' untuk arsip_id (Integer), 7 's' berikutnya untuk String (Teks)
+        mysqli_stmt_bind_param($stmt_log, "isssssss", $arsip_id, $nama, $jenis_aktivitas, $keterangan_aktivitas, $ttd, $waktu_sekarang, $jam_masuk, $jam_keluar);
+        
+        // Eksekusi query
+        if (!mysqli_stmt_execute($stmt_log)) {
+            throw new Exception("Gagal mengeksekusi penyimpanan data log peminjaman.");
+        }
+        
+        // Jika berhasil, kunci perubahan secara permanen
         mysqli_commit($koneksi);
+        mysqli_stmt_close($stmt_log);
         
+        // SweetAlert Sukses
         echo "<script>
                 document.addEventListener('DOMContentLoaded', function() {
                     Swal.fire({
                         toast: true,
-                        position: 'top-end', // Ubah ke 'bottom-end' jika ingin di bawah
+                        position: 'top-end',
                         icon: 'success',
                         title: 'Data arsip berhasil di pinjam!',
                         showConfirmButton: false,
-                        timer: 1500, // Waktu tampil 1.5 detik
+                        timer: 1500,
                         timerProgressBar: true
                     }).then(function() {
-                        // Pindah halaman setelah animasi Toast selesai
                         window.location = 'index.php';
                     });
                 });
               </script>";
-    } catch (mysqli_sql_exception $exception) {
+              
+    } catch (Exception $exception) {
+        // Batalkan semua transaksi jika ada satu saja yang gagal
         mysqli_rollback($koneksi);
-        $pesan_error = addslashes($exception->getMessage());
         
+        // Catat error asli di log server secara rahasia (aman dari mata hacker)
+        error_log("Peminjaman Error: " . $exception->getMessage());
+        
+        // Buat pesan standar yang aman untuk ditampilkan ke pengguna
+        $pesan_aman_user = "Terjadi kendala pada sistem database. Silakan coba kembali atau hubungi admin.";
+        
+        // SweetAlert Gagal (Menggunakan json_encode untuk keamanan ekstra dari XSS)
         echo "
         <script>
             document.addEventListener('DOMContentLoaded', function() {
@@ -53,7 +95,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     position: 'top-end',
                     icon: 'error',
                     title: 'Error Sistem Database!',
-                    text: '$pesan_error',
+                    text: " . json_encode($pesan_aman_user) . ",
                     showConfirmButton: false,
                     timer: 5000,
                     timerProgressBar: true
@@ -136,7 +178,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         '12' => 'Desember'
                     );
 
-                    $query_arsip = mysqli_query($koneksi, "SELECT id, kode_arsip, perihal, ruangan, no_rak, periode FROM arsip ");
+                    $query_arsip = mysqli_query($koneksi, "SELECT id, kode_arsip, perihal, ruangan, no_rak, periode, nomer_dokumen FROM arsip ");
                     while($row = mysqli_fetch_assoc($query_arsip)) {
 
                         $tanggal_mentah = $row['periode'];
@@ -152,7 +194,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             $periode_format = "-";
                         }
 
-                        echo "<option value='".$row['id']."'>".$row['kode_arsip']." - ".$row['perihal']. " - " . $periode_format . " - " . " (Posisi: ".$row['ruangan']."/".$row['no_rak'].")</option>";
+                        echo "<option value='".$row['id']."'>".$row['kode_arsip']." - ".$row['perihal']. " - " . $periode_format . " - " ." Dokumen ke " .$row['nomer_dokumen'] . " - " . " (Posisi: ".$row['ruangan']."/".$row['no_rak'].")</option>";
                     }
                     ?>
                 </select>
@@ -184,6 +226,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
 
+        <div class="form-group" style="margin-top: 15px;">
+            <div class="g-recaptcha" data-sitekey="<?php echo $site_key; ?>"></div>
+        </div>
+
         <div class="main-actions">
             <button type="submit" class="btn-lg btn-primary">Kirim</button>
             <button type="button" class="btn-lg btn-outline" onclick="window.location.reload();">Batal</button>
@@ -191,6 +237,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </form>
 </div>
 
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="script.js"></script>

@@ -81,6 +81,28 @@ if (canvas) {
                     text: 'Silakan klik tombol konfirmasi setelah menandatangani.' 
                 });
             }
+
+            // Mengambil respon dari widget reCAPTCHA Google
+            let recaptchaResponse = grecaptcha.getResponse();
+            
+            // Jika responnya kosong (belum dicentang)
+            if (recaptchaResponse.length === 0) {
+                
+                // 1. TAHAN FORM! Jangan biarkan loading/pindah halaman
+                e.preventDefault(); 
+                
+                // 2. Munculkan SweetAlert Toast Anda yang keren itu
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'warning', // Saya ganti ke warning agar lebih pas untuk peringatan
+                    title: 'Validasi Diperlukan',
+                    text: 'Silakan centang Captcha terlebih dahulu!',
+                    showConfirmButton: false,
+                    timer: 4000,
+                    timerProgressBar: true
+                });
+            }
         });
     }
 }

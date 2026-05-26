@@ -4,60 +4,106 @@ include "koneksi.php";
 
 // 2. Logika untuk memproses data ketika form dikirim (Method POST)
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    
-    $arsip_id             = mysqli_real_escape_string($koneksi, $_POST['arsip_id']);
-    $nama                 = mysqli_real_escape_string($koneksi, $_POST['nama']);
-    $no_rak               = mysqli_real_escape_string($koneksi, $_POST['no_rak']);
-    $tingkatan_rak        = mysqli_real_escape_string($koneksi, $_POST['tingkatan_rak']);
-    $ruangan              = mysqli_real_escape_string($koneksi, $_POST['ruangan']);
-    $keterangan_aktivitas = mysqli_real_escape_string($koneksi, $_POST['keterangan_aktivitas']);
-    $ttd                  = mysqli_real_escape_string($koneksi, $_POST['ttd']);
-    $jenis_aktivitas      = "Memindahkan";
-    $waktu_sekarang = date('Y-m-d H:i:s');
-    $jam_masuk            = mysqli_real_escape_string($koneksi, $_POST['jam_masuk']);
-    $jam_keluar           = mysqli_real_escape_string($koneksi, $_POST['jam_keluar']);
 
+    // 1. Tangkap respon dari kotak reCAPTCHA
+    $recaptcha_response = $_POST['g-recaptcha-response'];
+    
+    // Menggunakan konstanta RECAPTCHA_SECRET_KEY dari koneksi.php
+    $verify_url = "https://www.google.com/recaptcha/api/siteverify?secret=" . $secret_key . "&response=" . $recaptcha_response;
+    
+    // Kirim request ke Google dan baca hasilnya
+    $verify_response = file_get_contents($verify_url);
+    $response_data = json_decode($verify_response);
+    
+    // 2. Jika Google mendeteksi itu adalah Bot atau verifikasi gagal
+    if (!$response_data->success) {
+        echo "<script>alert('Verifikasi CAPTCHA gagal. Anda terdeteksi sebagai robot.'); window.history.back();</script>";
+        exit;
+    }
+    
+    // 3. Tangkap Variabel Langsung (Tanpa mysqli_real_escape_string)
+    $arsip_id             = $_POST['arsip_id'];
+    $nama                 = $_POST['nama'];
+    $no_rak               = $_POST['no_rak'];
+    $tingkatan_rak        = $_POST['tingkatan_rak'];
+    $ruangan              = $_POST['ruangan'];
+    $keterangan_aktivitas = $_POST['keterangan_aktivitas'];
+    $ttd                  = $_POST['ttd'];
+    $jam_masuk            = $_POST['jam_masuk'];
+    $jam_keluar           = $_POST['jam_keluar'];
+    
+    // Data Otomatis Internal Sistem
+    $jenis_aktivitas      = "Memindahkan";
+    $waktu_sekarang       = date('Y-m-d H:i:s');
+
+    // Mulai Transaksi Database
     mysqli_begin_transaction($koneksi);
     
-    // var_dump($_POST); die;
     try {
-        // a. Update lokasi rak dan ruangan baru di tabel arsip
-        $sql_update_arsip = "UPDATE arsip SET 
-                                ruangan = '$ruangan', 
-                                no_rak = '$no_rak', 
-                                tingkatan_rak = '$tingkatan_rak', 
-                                updated_at = '$waktu_sekarang'
-                             WHERE id = '$arsip_id'";
-        mysqli_query($koneksi, $sql_update_arsip);
+        // =========================================================================
+        // PREPARED STATEMENT 1: UPDATE LOKASI ARSIP
+        // =========================================================================
+        $sql_update_arsip = "UPDATE arsip SET ruangan = ?, no_rak = ?, tingkatan_rak = ?, updated_at = ? WHERE id = ?";
         
-        // b. Catat riwayat pemindahan ke tabel log_book beserta nama file tanda tangan
+        $stmt_update = mysqli_prepare($koneksi, $sql_update_arsip);
+        
+        // "ssssi" -> 4 String pertama (ruangan, no_rak, tingkatan_rak, waktu), 1 Integer terakhir (id)
+        mysqli_stmt_bind_param($stmt_update, "ssssi", $ruangan, $no_rak, $tingkatan_rak, $waktu_sekarang, $arsip_id);
+        
+        if (!mysqli_stmt_execute($stmt_update)) {
+            throw new Exception("Gagal memperbarui lokasi arsip di database.");
+        }
+
+        // =========================================================================
+        // PREPARED STATEMENT 2: INSERT CATATAN KE LOG BOOK
+        // =========================================================================
         $sql_insert_log = "INSERT INTO log_book (arsip_id, nama, ttd, jenis_aktivitas, keterangan_aktivitas, created_at, jam_masuk, jam_keluar) 
-                           VALUES ('$arsip_id', '$nama', '$ttd', '$jenis_aktivitas', '$keterangan_aktivitas', '$waktu_sekarang', '$jam_masuk', '$jam_keluar')";
-        mysqli_query($koneksi, $sql_insert_log);
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                           
+        $stmt_log = mysqli_prepare($koneksi, $sql_insert_log);
         
-        // Komit transaksi
+        // "isssssss" -> 1 Integer (arsip_id), 7 String (sisanya)
+        mysqli_stmt_bind_param($stmt_log, "isssssss", $arsip_id, $nama, $ttd, $jenis_aktivitas, $keterangan_aktivitas, $waktu_sekarang, $jam_masuk, $jam_keluar);
+        
+        if (!mysqli_stmt_execute($stmt_log)) {
+            throw new Exception("Gagal menyimpan riwayat pemindahan ke log book.");
+        }
+        
+        // Jika kedua perintah di atas berhasil, komit (simpan permanen) transaksinya
         mysqli_commit($koneksi);
         
+        // Tutup statement
+        mysqli_stmt_close($stmt_update);
+        mysqli_stmt_close($stmt_log);
+        
+        // Tampilkan Notifikasi Sukses
         echo "<script>
                 document.addEventListener('DOMContentLoaded', function() {
                     Swal.fire({
                         toast: true,
-                        position: 'top-end', // Ubah ke 'bottom-end' jika ingin di bawah
+                        position: 'top-end',
                         icon: 'success',
                         title: 'Data arsip berhasil dipindahkan!',
                         showConfirmButton: false,
-                        timer: 1500, // Waktu tampil 1.5 detik
+                        timer: 1500,
                         timerProgressBar: true
                     }).then(function() {
-                        // Pindah halaman setelah animasi Toast selesai
                         window.location = 'index.php';
                     });
                 });
               </script>";
-    } catch (mysqli_sql_exception $exception) {
+              
+    } catch (Exception $exception) {
+        // Batalkan (Rollback) kedua query jika salah satunya gagal
         mysqli_rollback($koneksi);
-        $pesan_error = addslashes($exception->getMessage());
         
+        // Simpan error asli ke dalam file log server secara rahasia
+        error_log("Pemindahan Error: " . $exception->getMessage());
+        
+        // Pesan error umum yang aman untuk dilihat pengguna
+        $pesan_aman_user = "Terjadi kendala pada sistem database saat memindahkan data. Silakan hubungi admin.";
+        
+        // Tampilkan Notifikasi Gagal (Aman dari XSS)
         echo "
         <script>
             document.addEventListener('DOMContentLoaded', function() {
@@ -66,7 +112,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     position: 'top-end',
                     icon: 'error',
                     title: 'Error Sistem Database!',
-                    text: '$pesan_error',
+                    text: " . json_encode($pesan_aman_user) . ",
                     showConfirmButton: false,
                     timer: 5000,
                     timerProgressBar: true
@@ -151,7 +197,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                     
                     // Mengambil semua arsip untuk dipindahkan lokasinya
-                    $query_arsip = mysqli_query($koneksi, "SELECT id, kode_arsip, perihal, ruangan, no_rak, periode FROM arsip");
+                    $query_arsip = mysqli_query($koneksi, "SELECT id, kode_arsip, perihal, ruangan, no_rak, nomer_dokumen, periode FROM arsip");
                     while($row = mysqli_fetch_assoc($query_arsip)) {
 
                         $tanggal_mentah = $row['periode'];
@@ -167,7 +213,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             $periode_format = "-";
                         }
 
-                        echo "<option value='".$row['id']."'>".$row['kode_arsip']." - ".$row['perihal']. " - " . $periode_format ." - "." (Posisi: ".$row['ruangan']."/".$row['no_rak'].")</option>";
+                        echo "<option value='".$row['id']."'>".$row['kode_arsip']." - ".$row['perihal']. " - " . $periode_format ." - ". "Dokumen ke " .$row['nomer_dokumen'] . " - " ." (Posisi: ".$row['ruangan']."/".$row['no_rak'].")</option>";
                     }
                     ?>
                 </select>
@@ -220,6 +266,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
 
+        <div class="form-group" style="margin-top: 15px;">
+            <div class="g-recaptcha" data-sitekey="<?php echo $site_key; ?>"></div>
+        </div>
+
         <div class="main-actions">
             <button type="submit" class="btn-lg btn-primary">Kirim</button>
             <button type="button" class="btn-lg btn-outline" onclick="window.location.reload();">Batal</button>
@@ -227,6 +277,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </form>
 </div>
 
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="script.js"></script>
